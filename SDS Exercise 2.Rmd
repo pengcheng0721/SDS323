@@ -1,0 +1,682 @@
+---
+title: "SDS Exercise 2"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+# KNN Practice
+To use K-nearest neighbors to build a predictive model for price, given mileage, separately for each of two trim levels: 350 and 65 AMG, we first create two datasets containing only the 350 model and the 65 AMG model. With train-test splits and applying different values of K, we report the root mean square error of each k and the relationship between RMSE and K as follows.
+```{r}
+library(tidyverse)
+library(FNN)
+library(foreach)
+sclass = read.csv('/Users/pengcheng/Desktop/sclass.csv')
+car350 = filter(sclass, trim == '350')
+car65 = filter(sclass, trim == '65 AMG')
+```
+
+## 350 Model
+
+### RMSE for each value of K
+```{r}
+N = nrow(car350)
+N_train = floor(0.8*N)
+N_test = N - N_train
+train_id = sample.int(N, N_train, replace=FALSE)
+D_train = car350[train_id,]
+D_train = arrange(D_train, mileage)
+D_test = car350[-train_id,]
+X_train = select(D_train, mileage)
+y_train = select(D_train, price)
+X_test = select(D_test, mileage)
+y_test = select(D_test, price)
+rmse = function(y, ypred) {
+  sqrt(mean(data.matrix((y-ypred)^2)))
+}
+```
+```{r}
+knn3 = knn.reg(train = X_train, test = X_test , y = y_train, k=3)
+ypred_knn3 = knn3$pred
+rmses = rmse(y_test, ypred_knn3)
+```
+$$
+k=3:RMSE_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn5 = knn.reg(train = X_train, test = X_test , y = y_train, k=5)
+ypred_knn5 = knn5$pred
+rmses = rmse(y_test, ypred_knn5)
+```
+$$
+k=5:RMSE_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn10 = knn.reg(train = X_train, test = X_test , y = y_train, k=10)
+ypred_knn10 = knn10$pred
+rmses = rmse(y_test, ypred_knn10)
+```
+$$
+k=10:RMSE_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn20 = knn.reg(train = X_train, test = X_test , y = y_train, k=20)
+ypred_knn20 = knn20$pred
+rmses = rmse(y_test, ypred_knn20)
+```
+$$
+k=20:RMSE_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn50 = knn.reg(train = X_train, test = X_test , y = y_train, k=50)
+ypred_knn50 = knn50$pred
+rmses = rmse(y_test, ypred_knn50)
+```
+$$
+k=50:RMSE_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn100 = knn.reg(train = X_train, test = X_test , y = y_train, k=100)
+ypred_knn100 = knn100$pred
+rmses = rmse(y_test, ypred_knn100)
+```
+$$
+k=100:RMSE_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn332 = knn.reg(train = X_train, test = X_test , y = y_train, k=332)
+ypred_knn332 = knn332$pred
+rmses = rmse(y_test, ypred_knn332)
+```
+$$
+k=332:RMSE_{out} = `r round(rmses, 0)`
+$$
+
+### Plot the relationship between RMSE and K
+```{r}
+set.seed(123)
+k_grid = unique(round(exp(seq(log(332), log(3), length=100))))
+rmse_grid_out = foreach(k = k_grid, .combine='c') %do% {
+  knn_model = knn.reg(X_train, X_test, y_train, k = k)
+  rmse(y_test, knn_model$pred)
+}
+rmse_grid_out = data.frame(K = k_grid, RMSE = rmse_grid_out)
+ind_best = which.min(rmse_grid_out$RMSE)
+k_best = k_grid[ind_best]
+ggplot(data=rmse_grid_out) + 
+  geom_path(aes(x=K, y=RMSE)) +
+  labs(title = 'Relationship between K and RMSE of 350 model') +
+  theme(plot.title = element_text(hjust = 0.5, face = "italic", color = 'grey2', size = 15)) +
+  geom_vline(xintercept=k_best, color='darkgreen', size=1) 
+```
+
+$$
+The\ value\ of\ best\ k\ is:\ `r k_best`
+$$
+
+### Plot the best KNN model
+```{r}
+knn_model = knn.reg(X_train, X_test, y_train, k = k_best)
+D_test$ypred = knn_model$pred
+rmse_best = rmse(y_test, knn_model$pred)
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_train + geom_line(data=D_test, mapping = aes(x=mileage, y=ypred), color='red', size=1.5) + labs(title = 'The best KNN model for 350 model') +
+  theme(plot.title = element_text(hjust = 0.5, color = 'grey2', size = 15, face = "italic")) +
+  theme(axis.text = element_text(size = 10), axis.title = element_text(size = 12))
+```
+$$
+RMSE_{out} = `r round(rmse_best, 0)`
+$$
+
+## 65 AMG Model
+
+### RMSE for each value of K
+```{r}
+N = nrow(car65)
+N_train = floor(0.8*N)
+N_test = N - N_train
+train_id = sample.int(N, N_train, replace=FALSE)
+D_train = car65[train_id,]
+D_train = arrange(D_train, mileage)
+D_test = car65[-train_id,]
+X_train = select(D_train, mileage)
+y_train = select(D_train, price)
+X_test = select(D_test, mileage)
+y_test = select(D_test, price)
+```
+```{r}
+knn3 = knn.reg(train = X_train, test = X_test , y = y_train, k=3)
+ypred_knn3 = knn3$pred
+rmses = rmse(y_test, ypred_knn3)
+```
+$$
+k=3:{RMSE}_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn5 = knn.reg(train = X_train, test = X_test , y = y_train, k=5)
+ypred_knn5 = knn5$pred
+rmses = rmse(y_test, ypred_knn5)
+```
+$$
+k=5:{RMSE}_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn10 = knn.reg(train = X_train, test = X_test , y = y_train, k=10)
+ypred_knn10 = knn10$pred
+rmses = rmse(y_test, ypred_knn10)
+```
+$$
+k=10:{RMSE}_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn20 = knn.reg(train = X_train, test = X_test , y = y_train, k=20)
+ypred_knn20 = knn20$pred
+rmses = rmse(y_test, ypred_knn20)
+```
+$$
+k=20:{RMSE}_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn50 = knn.reg(train = X_train, test = X_test , y = y_train, k=50)
+ypred_knn50 = knn50$pred
+rmses = rmse(y_test, ypred_knn50)
+```
+$$
+k=50:{RMSE}_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn100 = knn.reg(train = X_train, test = X_test , y = y_train, k=100)
+ypred_knn100 = knn100$pred
+rmses = rmse(y_test, ypred_knn100)
+```
+$$
+k=100:{RMSE}_{out} = `r round(rmses, 0)`
+$$
+```{r}
+knn332 = knn.reg(train = X_train, test = X_test , y = y_train, k=233)
+ypred_knn332 = knn332$pred
+rmses = rmse(y_test, ypred_knn332)
+```
+$$
+k=233:{RMSE}_{out} = `r round(rmses, 0)`
+$$
+
+### Plot the relationship between RMSE and K
+```{r}
+k_grid = unique(round(exp(seq(log(233), log(3), length=100))))
+rmse_grid_out = foreach(k = k_grid, .combine='c') %do% {
+  knn_model = knn.reg(X_train, X_test, y_train, k = k)
+  rmse(y_test, knn_model$pred)
+}
+rmse_grid_out = data.frame(K = k_grid, RMSE = rmse_grid_out)
+ind_best = which.min(rmse_grid_out$RMSE)
+k_best = k_grid[ind_best]
+ggplot(data=rmse_grid_out) + 
+  geom_path(aes(x=K, y=RMSE)) +
+  labs(title = 'Relationship between K and RMSE of 65 AMG model') +
+  theme(plot.title = element_text(hjust = 0.5, face = "italic", color = 'grey2', size = 15)) + geom_vline(xintercept=k_best, color='darkgreen', size=1) 
+```
+
+$$
+The\ value\ of\ best\ k\ is:\ `r k_best`
+$$
+
+### Plot the best KNN model
+```{r}
+knn_model = knn.reg(X_train, X_test, y_train, k = k_best)
+D_test$ypred = knn_model$pred
+rmse_best = rmse(y_test, knn_model$pred)
+p_train = ggplot(data = D_train) + 
+  geom_point(mapping = aes(x = mileage, y = price), color='lightgrey') + 
+  theme_bw(base_size=18)
+p_train + geom_line(data=D_test, mapping = aes(x=mileage, y=ypred), color='red', size=1.5) + labs(title = 'The best KNN model for 65 AMG model') +
+  theme(plot.title = element_text(hjust = 0.5, color = 'grey2', size = 15, face = "italic")) +
+  theme(axis.text = element_text(size = 10), axis.title = element_text(size = 12))
+```
+$$
+RMSE_{out} = `r round(rmse_best, 0)`
+$$
+
+## Conclusion
+```{r}
+sclass_compare = filter(sclass, trim == '65 AMG'| trim == '350')
+ggplot(data = sclass_compare) +
+  geom_point(mapping = aes(x = mileage, y = price, color=trim)) +
+  labs(title = 'Relationship between price and mileage for 65 AMG & 350 model') +
+  theme(plot.title = element_text(hjust = 0.5, face = "italic", color = 'grey2', size = 15), plot.caption = element_text(hjust = 0.5, face = "italic", color = 'grey2')) +
+  labs(caption = 'The price of 65 AMG models have greater variability than that of 350 model. ')
+```
+
+With repeated trials, we investigate the relationship between RMSE and K, plot the best KNN model for each of the two trim levels. We also find that the optimal value of K is generally higher for 65 AMG model than it is for 350 model. This seems unusual as the conventional wisdom states that K value is generally correlated with the sample size, and 350 model has more observations than the 65 AMG model.
+
+We try to explain this phenomenon with the scatter plot above, which shows that the price of 65 AMG model has greater variance than that of 350 model. This implies the data of 65 AMG model has more "noise". And when larger values of k are used, the KNN algorithm reduces the noise in the data, which results in better out-of-sample performance. On the contrary, 350 model does not have much "noise". Therefore, a smaller k value returns better out-of-sample predictions.
+
+# Saratoga house prices
+To investigate the relationship between house prices and key characteristics, we apply two methodologies: a hand-built linear model and a KNN model.
+
+## Hand-built model
+In an attempt to create a better performing model, we first look into the relationship between house prices and continuous variables and determine whether the relationship is linear or not. From real-life intuitions, we believe age to have a negative impact on the house price yet we expect a diminishing marginal impact of age on house prices as people are more sensitive to the ages of relatively new properties.
+```{r}
+library(mosaic)
+data(SaratogaHouses)
+lm_medium = lm(price ~ lotSize + age + livingArea + pctCollege + bedrooms + 
+		fireplaces + bathrooms + rooms + heating + fuel + centralAir, data=SaratogaHouses)
+n = nrow(SaratogaHouses)
+n_train = round(0.8*n)  
+n_test = n - n_train
+train_cases = sample.int(n, n_train, replace=FALSE)
+test_cases = setdiff(1:n, train_cases)
+saratoga_train = SaratogaHouses[train_cases,]
+saratoga_test = SaratogaHouses[test_cases,]
+```
+
+### Transformation: Age and Price
+```{r}
+ggplot(data = saratoga_train) + 
+  geom_point(mapping=aes(x= age, y = price), color = "orange") +
+  geom_smooth(mapping=aes(x= age, y = price),color="skyblue3", se = FALSE) +
+  ggtitle("Relationship between age and price") +
+  theme(plot.title = element_text(hjust = 0.5, face = "italic", color = 'grey2'))
+```
+The graph shows that age does seem to have a diminishing negative impact on price. Thus, to accommodate the diminishing marginal effect of age, we attempt two common types of transformation: log(age) and square root of age
+
+#### log(age) vs sqrt(age)
+```{r}
+saratoga_train = mutate(saratoga_train, sqrtage = sqrt(age))
+saratoga_train = mutate(saratoga_train, lgage = log(age+1))
+saratoga_test = mutate(saratoga_test, sqrtage = sqrt(age))
+saratoga_test = mutate(saratoga_test, lgage = log(age+1))
+lm_lg = lm(price ~ . - sqrtage - age, data = saratoga_train)
+lm_sqrt = lm(price ~ . - lgage - age, data = saratoga_train)
+lm_age = lm(price ~ . - lgage - sqrtage, data = saratoga_train)
+yhat_testlg = predict(lm_lg, saratoga_test)
+yhat_testsqrt = predict(lm_sqrt, saratoga_test)
+yhat_testage = predict(lm_age, saratoga_test)
+c(rmse(saratoga_test$price, yhat_testlg),
+  rmse(saratoga_test$price, yhat_testsqrt),
+  rmse(saratoga_test$price, yhat_testage))
+```
+The root mean square error of using log transformation is `r round(rmse(saratoga_test$price, yhat_testlg), 0)`, while for square root transformation is `r round(rmse(saratoga_test$price, yhat_testsqrt), 0)` and for no transformation is `r round(rmse(saratoga_test$price, yhat_testage), 0)`. With the log transformation possessing the smallest RMSE, we adopt log transformation of age.
+
+### Finding variables & interactions with statistically significant impacts
+We further investigate the impact of other discrete/continuous variables on house prices and incorporate statistically significant variables into our hand-built model.
+```{r}
+summary(lm_lg)
+```
+From the regression results above, we find lotSize, landValue, livingArea, bathrooms, rooms, heatinghot water/steam, waterfront, newConstruction, CentralAir and lgage to be statistically significant at 5% significance level.
+Next, we go on to add the effects of interactions into our model by incorporating preceding variables and their interactions:
+```{r}
+saratoga_train = mutate(saratoga_train, waterfrontNo = ifelse(waterfront == 'No', 1, 0))
+saratoga_train = mutate(saratoga_train, heatingHotwater = ifelse(heating == 'hot water/steam', 1, 0))
+saratoga_test = mutate(saratoga_test, waterfrontNo = ifelse(waterfront == 'No', 1, 0))
+saratoga_test = mutate(saratoga_test, heatingHotwater = ifelse(heating == 'hot water/steam', 1, 0))
+lmlg2 = lm(price ~ (lotSize + landValue + livingArea + bathrooms + rooms + waterfrontNo + heatingHotwater + newConstruction + centralAir + lgage)^2, data = saratoga_train)
+summary(lmlg2)
+```
+From the regression results above, we find landValue, heatingHotwater lotSize:landValue, lotSize:livingArea, lotSize:rooms, lotSize:centralAirNo,  landValue:waterfrontNo, landValue:heatingHotwater, landValue:lgage, livingArea:bathrooms, livingArea:waterfrontNo, bathrooms:newConstructionNo, centralAirNo:lgage to be statistically significant at 10% confidence level.
+Therefore, we build a new model using the all the independent variables & preceding interactions.
+```{r}
+lmlg3 = lm(price ~ landValue + lotSize + landValue + livingArea + rooms + centralAir + waterfrontNo + heatingHotwater + lgage + bathrooms + newConstruction + lotSize:landValue + lotSize:livingArea + lotSize:rooms+ lotSize:centralAir+  landValue:waterfrontNo+ landValue:heatingHotwater+ landValue:lgage+ livingArea:bathrooms+ livingArea:waterfrontNo+ bathrooms:newConstruction+ centralAir:lgage, data = saratoga_train)
+summary(lmlg3)
+```
+From the regression results above, we further eliminate interactions that are not statistically significant, namely, livingArea:waterfrontNo, bathrooms:newConstructionNo, landValue:waterfrontNo, lotSize:rooms.
+
+```{r}
+lm_lg4 = lm(price ~ lotSize + landValue + livingArea + rooms + centralAir + waterfrontNo + heatingHotwater + lgage + bathrooms + newConstruction + lotSize:landValue + lotSize:livingArea +  lotSize:centralAir+ landValue:heatingHotwater+ landValue:lgage+ livingArea:bathrooms+  centralAir:lgage, data = saratoga_train)
+summary(lm_lg4)
+```
+Finally, from the regression results above, we eliminate variables heatingHotwater and bathrooms, and get our dominate model.
+```{r}
+lm_dominate = lm(price ~ lotSize + landValue + livingArea + rooms + centralAir + waterfrontNo + lgage + newConstruction + lotSize:landValue + lotSize:livingArea +  lotSize:centralAir+ landValue:heatingHotwater+ landValue:lgage+ livingArea:bathrooms+  centralAir:lgage, data = saratoga_train)
+```
+
+$$
+{Price}_{estimate} = \beta_0\ +\ \beta_1lotSize\ +\ \beta_2landValue\ +\ \beta_3livingArea\ +\beta_4rooms\ +\beta_5centralAir +\
+$$
+$$
+\beta_6waterfrontNo\ +\ \beta_7lgage\ +\ \beta_8newConstuction\ +\ \beta_9lotSize:landValue +\ 
+$$
+$$
+\beta_{10}lotSize:livingArea\ +\ \beta_{11}lotSize:centralAir\ +\beta_{12}landValue:heatingHotwater\ +\
+$$
+$$
+\beta_{13}landValue:lgage\ +\ \beta_{14}livingArea:bathrooms\ +\ \beta_{15}centralAir:lgage\
+$$
+```{r}
+coef(lm_dominate)
+```
+
+### Final model & Comparison
+```{r include=FALSE}
+rmse_vals = do(100)*{
+  
+  # re-split into train and test cases with the same sample sizes
+  train_cases = sample.int(n, n_train, replace=FALSE)
+  test_cases = setdiff(1:n, train_cases)
+  saratoga_train = SaratogaHouses[train_cases,]
+  saratoga_test = SaratogaHouses[test_cases,]
+  
+  # Fit to the training data
+  lm_medium = lm(price ~ lotSize + age + livingArea + pctCollege + bedrooms + 
+                 fireplaces + bathrooms + rooms + heating + fuel + centralAir, data=saratoga_train)
+  saratoga_train = mutate(saratoga_train, waterfrontNo = ifelse(waterfront == 'No', 1, 0))
+  saratoga_train = mutate(saratoga_train, heatingHotwater = ifelse(heating == 'hot water/steam', 1, 0))
+  saratoga_test = mutate(saratoga_test, waterfrontNo = ifelse(waterfront == 'No', 1, 0))
+  saratoga_test = mutate(saratoga_test, heatingHotwater = ifelse(heating == 'hot water/steam', 1, 0))
+  saratoga_train = mutate(saratoga_train, lgage = log(age+1))
+  saratoga_test = mutate(saratoga_test, lgage = log(age+1))
+  # Predictions out of sample
+  yhat_test1 = predict(lm_medium, saratoga_test)
+  yhat_test2 = predict(lm_dominate, saratoga_test)
+  
+  c(rmse(saratoga_test$price, yhat_test1),
+    rmse(saratoga_test$price, yhat_test2))
+}
+```
+```{r}
+colMeans(rmse_vals)
+boxplot(rmse_vals, main = 'RMSE of medium model vs hand-built model') 
+```
+
+The boxplot above shows that our hand built model significantly outperforms the medium model.
+
+## KNN model
+In order to construct the best KNN model, we engage in multiple train-test splits and try to find the optimum k value.
+
+```{r}
+N = nrow(SaratogaHouses)
+N_train = floor(0.8*N)
+N_test = N - N_train
+train_id = sample.int(N, N_train, replace=FALSE)
+D_train = SaratogaHouses[train_id,]
+D_test = SaratogaHouses[-train_id,]
+D_train = mutate(D_train, waterfrontNo = ifelse(waterfront == 'No', 1, 0))
+D_test = mutate(D_test, waterfrontNo = ifelse(waterfront == 'No', 1, 0))
+D_train = mutate(D_train, centralAirNo = ifelse(centralAir == 'No', 1, 0))
+D_test = mutate(D_test, centralAirNo = ifelse(centralAir == 'No', 1, 0))
+D_train = mutate(D_train, newConstructionNo = ifelse(newConstruction == 'No', 1, 0))
+D_test = mutate(D_test, newConstructionNo = ifelse(newConstruction == 'No', 1, 0))
+D_train = mutate(D_train, lgage = log(age+1))
+D_test = mutate(D_test, lgage = log(age+1))
+  
+X_train = select(D_train, lotSize, landValue, livingArea, rooms, centralAirNo, waterfrontNo, lgage, newConstructionNo)
+y_train = select(D_train, price)
+X_test = select(D_test, lotSize, landValue, livingArea, rooms, centralAirNo, waterfrontNo, lgage, newConstructionNo)
+y_test = select(D_test, price)
+k_grid = unique(round(exp(seq(log(1382), log(3), length=100))))
+rmse_grid_out = foreach(k = k_grid, .combine='c') %do% {
+  knn_model = knn.reg(X_train, X_test, y_train, k = k)
+  rmse(y_test, knn_model$pred)
+}
+rmse_grid_out = data.frame(K = k_grid, RMSE = rmse_grid_out)
+ind_best = which.min(rmse_grid_out$RMSE)
+k_best = k_grid[ind_best]
+ggplot(data=rmse_grid_out) + 
+  geom_path(aes(x=K, y=RMSE)) +
+  labs(title = 'Relationship between K and RMSE of saratogaHouses') +
+  geom_vline(xintercept=k_best, color='darkgreen', size=1) +
+  theme(plot.title = element_text(hjust = 0.5, face = "italic", color = 'grey2'))
+ggplot(data=rmse_grid_out) + 
+  geom_path(aes(x=K, y=RMSE)) +
+  labs(title = 'Relationship between K and RMSE of saratogaHouses, k: 0-50') +
+  geom_vline(xintercept=k_best, color='darkgreen', size=1) +
+  theme(plot.title = element_text(hjust = 0.5, face = "italic", color = 'grey2')) +
+  xlim(0,50)
+```
+From the graphs above, we find that when k = `r k_best`, the KNN model have the lowest root mean square error.
+```{r}
+rmse_mean = do(10)* {
+  N = nrow(SaratogaHouses)
+  N_train = floor(0.8*N)
+  N_test = N - N_train
+  train_id = sample.int(N, N_train, replace=FALSE)
+  D_train = SaratogaHouses[train_id,]
+  D_test = SaratogaHouses[-train_id,]
+  D_train = mutate(D_train, waterfrontNo = ifelse(waterfront == 'No', 1, 0))
+  D_test = mutate(D_test, waterfrontNo = ifelse(waterfront == 'No', 1, 0))
+  D_train = mutate(D_train, centralAirNo = ifelse(centralAir == 'No', 1, 0))
+  D_test = mutate(D_test, centralAirNo = ifelse(centralAir == 'No', 1, 0))
+  D_train = mutate(D_train, newConstructionNo = ifelse(newConstruction == 'No', 1, 0))
+  D_test = mutate(D_test, newConstructionNo = ifelse(newConstruction == 'No', 1, 0))
+  D_train = mutate(D_train, lgage = log(age+1))
+  D_test = mutate(D_test, lgage = log(age+1))
+  X_train = select(D_train, lotSize, landValue, livingArea, rooms, centralAirNo, waterfrontNo, lgage, newConstructionNo)
+  y_train = select(D_train, price)
+  X_test = select(D_test, lotSize, landValue, livingArea, rooms, centralAirNo, waterfrontNo, lgage, newConstructionNo)
+  y_test = select(D_test, price)
+  k_grid = unique(round(exp(seq(log(1382), log(3), length=100))))
+  rmse_grid_out = foreach(k = k_grid, .combine='c') %do% {
+    knn_model = knn.reg(X_train, X_test, y_train, k = k)
+    rmse(y_test, knn_model$pred)
+  }
+  rmse_grid_out = data.frame(K = k_grid, RMSE = rmse_grid_out)
+  ind_best = which.min(rmse_grid_out$RMSE)
+  k_best = k_grid[ind_best]
+  knn_best = knn.reg(train = X_train, test = X_test , y = y_train, k=k_best)
+  ypred_knn_best = knn_best$pred
+  rmse(y_test, ypred_knn_best)
+}
+rmse_meannum = sum(rmse_mean)/10
+```
+The calculation shows that on average, the lowest root mean square error for KNN model is `r round(rmse_meannum, 0)`, which is higher than that for the hand-built model.
+
+### Conclusions
+We have evaluated the available data regarding homes in the Saratoga area with a view to devising a model to value those homes for tax purposes.  In doing so, we have focused explicitly on statistical evidence of relationships between home features and home price that appear in the available data set.  Certain of those relationships are not intuitive, but if the available data is sufficiently robust, the model taken as a whole should provide a reasonable prediction of home value.  
+
+The data that we considered included 15 characteristics of homes, which we evaluated to assess predictive value with regard to the price of the home.  Certain of those characteristics did not appear to be meaningfully predictive, and were therefore not included in the model.  We also considered interactions between factors, and identified several that had predictive value, including an interaction involving one of the features that was not independently predictive.  Predictive value was assessed based on the statistical significance of the predictive relationship at a 95% confidence interval.  We identified eight characteristics that were individually predictive, and seven characteristic interactions that were predictive.  
+
+100 randomly sampled training/test splits were performed utilizing that model and compared to a similar number of training/test splits utilizing the medium model against which we bench-marked our analysis.  We found that the mean squared error of the predictions utilizing the new model was materially lower than the benchmark error, as reflected in the boxplot.  The root mean square error in our new model is `r round(rmse(saratoga_test$price, yhat_test1), 0)` while in the medium model, the root mean square error is `r round(rmse(saratoga_test$price, yhat_test2), 0)`.  That analysis suggests that the new model will be more effective in predicting the value of homes for tax purposes.
+
+We also build KNN models that predicts house prices with documented features. By plotting the relationship between the out-of-sample root mean square errors and k values, we find that the best k value is `r k_best` and the corresponding root mean square error is `r round(rmse_meannum, 0)`, which is higher than the root mean square error of our hand-built linear model. The best-performing KNN model also, surprisingly, has a higher out-of-sample root mean square error than the medium model.
+
+------------------------------------------------------------------------------
+1.There were six such characteristics: the percentage of college graduates, the number of bedrooms, fireplaces and bathrooms, type of heating fuel and the presence of a sewer connection.  This may appear surprising since he number of bedrooms and bathrooms are ordinarily thought of as value predictors, but two features that are included in the model, the living area and number of rooms, are surrogates for those qualities that, based on our analysis, appear to be a more reliable predictor of value.  
+2.The eight individual features are lot size, land value, living area, number of rooms, central air conditioning, whether the property is waterfront, the age of the building (considered on a logarithmic scale) and whether it is new construction.  Seven interactions, five of which were interactions with either lot size or land value, were also included in the model on that basis.  Another feature, the type of heating, was not predictive standing alone, but was predictive in combination with the land value of a property and included in the model on that basis.
+
+# Predicting when articles go viral
+
+In order to successfully predict whether an article would go viral, we attempt two approaches: the classification approach and the regression approach. In classification approach, we first classify the training sets into two categories with the 1400 threshold. Then, we establish a  probability model for further predictions. In regression approach, we estimate the number of shares for each distinct article, and based on the predicted shares, classify the training sets. Both methodologies are expected to outperform the null model yet we seek to find the best model for each approach and determine which approaches are more accurate in solving classification problems. 
+
+## Classification Approach
+We first build a new dataset from online_news but taking away the "url" variables and adding a new variable, "viral", which defines whether the news is viral or not depending on the variable "shares" (1 is viral with shares over 1400, 0 is not viral with shares less than or equal to 1400). The new dataset is called "online_news1".
+
+After performing train-test splits on the new dataset, we build baseline linear/logistic probability model with "viral" as dependent variable and all the remaining variables except "shares" as explanatory variables. Next, we apply the backward algorithm to select the variables that are better at predicting whether an article goes viral in both models and compare their in-sample performances. 
+```{r}
+library(tidyverse)
+library(mosaic)
+rate=function(confusion){(sum(diag(confusion_out))/sum(confusion_out))}
+online_news = read.csv("/Users/pengcheng/Desktop/online_news.csv")
+online_news1=subset(online_news,select=-c(url))
+online_news1$viral <- ifelse(online_news1$shares>1400, 1, 0) 
+```
+
+### Logistic Probability Model
+```{r include=FALSE}
+w = nrow(online_news1)
+w_train = round(0.8*w)  # round to nearest integer
+w_test = w - w_train
+train = sample.int(w, w_train, replace=FALSE)
+test = setdiff(1:w,train)
+online_train = online_news1[train,]
+online_test = online_news1[test,]
+glm_online=glm(viral ~ . - shares, data=online_train, family = binomial)
+library(doMC)
+glm_backward1 = step(glm_online, direction = 'backward', family = binomial)
+```
+```{r}
+yhat_train=predict(glm_backward1,newdata=online_train)
+yhat_viral=ifelse(yhat_train > 0.5, 1, 0)
+confusion_in=table(y = online_train$viral, yhat = yhat_viral)
+confusion_in
+sum(diag(confusion_in))/sum(confusion_in)
+```
+
+### Linear Probability Model
+```{r include=FALSE}
+lm_online=lm(viral ~ . - shares, data=online_train)
+library(doMC)
+set.rseed(123)
+lm_backward1 = step(lm_online, direction = 'backward')
+```
+```{r}
+yhat_train=predict(lm_backward1,newdata=online_train)
+yhat_viral=ifelse(yhat_train > 0.5, 1, 0)
+confusion_in1=table(y = online_train$viral, yhat = yhat_viral)
+confusion_in1
+sum(diag(confusion_in1))/sum(confusion_in1)
+```
+The in-sample performance of the best linear probability model is clearly better than the performance of the logistic probability model. The accuracy of the linear probability model is `r (sum(diag(confusion_in1))/sum(confusion_in1))%>%round(3)` while the accuracy of the logistic probability model is `r (sum(diag(confusion_in))/sum(confusion_in))%>%round(3)`. Therefore, we choose the linear probability model for further calculations.
+
+### Out-of-sample performance for linear probability model
+```{r}
+confusion_matrix = do(100) * {
+  w = nrow(online_news1)
+  w_train = round(0.8*w)  # round to nearest integer
+  w_test = w - w_train
+  train = sample.int(w, w_train, replace=FALSE)
+  test = setdiff(1:w,train)
+  online_train = online_news1[train,]
+  online_test = online_news1[test,]
+  yhat_test=predict(lm_backward1,newdata=online_test)
+  viral_test = ifelse(yhat_test > 0.5, 1, 0)
+  confusion_out=table(y = online_test$viral,yhat=viral_test)
+}
+accuracy = (sum(confusion_matrix$X0.0)+sum(confusion_matrix$X1.1))/sum(confusion_matrix)
+class_matrix = matrix(round(c(sum(confusion_matrix$X0.0), sum(confusion_matrix$X0.1), sum(confusion_matrix$X1.0), sum(confusion_matrix$X1.0))/100, 0),ncol = 2,byrow=TRUE)
+colnames(class_matrix) <- c("0","1")
+rownames(class_matrix) <- c("0","1")
+names(dimnames(class_matrix)) <- list('y', 'yhat')
+class_table <- as.table(class_matrix)
+class_table
+```
+The above is the confusion matrix obtained from the average of 100 out-of-sample performances of linear probability model. From which we can report that:
+The true positive rate is `r (sum(confusion_matrix$X1.0) / (sum(confusion_matrix$X1.0) + sum(confusion_matrix$X1.1)))%>%round(3)`.
+The false positive rate is `r (sum(confusion_matrix$X0.1) / (sum(confusion_matrix$X0.1) + sum(confusion_matrix$X0.0)))%>%round(3)`. 
+The false discovery rate is `r (sum(confusion_matrix$X0.1) / (sum(confusion_matrix$X1.1) + sum(confusion_matrix$X0.1)))%>%round(3)`.
+The overall accuracy rate is `r accuracy%>%round(3)`.
+The overall error rate is `r (1-accuracy)%>%round(3)`. 
+
+### Comparison with the null model
+```{r}
+table(online_train$viral)
+```
+From the table, it's reasonable to assume that "not viral" is the more likely outcome. So a reasonable null model is the one that guesses "not viral" for every test-set instance.Then, we investigate the out-of-sample performance for the null model.
+```{r}
+table(online_test$viral)
+acc1 = 1- sum(online_test$viral)/sum(table(online_test$viral))
+acc1
+```
+In this particular train-test split. The accuracy of the model is `r acc1%>%round(3)`. Our classification model returns an accuracy rate of `r accuracy%>%round(3)`. Its absolute improvement over the null model is approximately `r (100*(accuracy - acc1))%>%round(3)` percent. Its relative improvement, or lift over the null model is `r (accuracy / acc1)%>%round(3)`. Clearly, our classification model demonstrates significant improvements of accuracy compared to the baseline model. 
+
+## Regression Approach
+
+### log(shares) vs shares
+We continue to use online_news1 as our dataset. However, instead of investigating variable "viral", when constructing baseline model, we use "shares"/"log(shares)" as our dependent variable and all the other variables except "viral" as explanatory variables. Next, we use backward algorithm to find the best linear model that predicts the shares/log transformation of shares with given features and compare the in-sample performance of the two models.
+
+#### shares model
+```{r include=FALSE}
+library(doMC)
+set.rseed(123)
+w = nrow(online_news1)
+w_train = round(0.8*w)  # round to nearest integer
+w_test = w - w_train
+train = sample.int(w, w_train, replace=FALSE)
+test = setdiff(1:w,train)
+online_train = online_news1[train,]
+online_test = online_news1[test,]
+lm_big = lm(shares ~ . - viral, data = online_train)
+lm_backward = step(lm_big, direction = 'backward')
+```
+```{r}
+yhat_train=predict(lm_backward,newdata=online_train)
+yhat_viral=ifelse(yhat_train > 1400, 1, 0)
+confusion_in=table(y = online_train$viral, yhat = yhat_viral)
+sum(diag(confusion_in))/sum(confusion_in)
+```
+$$
+The\ accuracy\ of\ the\ linear\ model\ for\ log(shares)\ is\ `r (sum(diag(confusion_in))/sum(confusion_in))%>%round(3)`
+$$
+
+#### log(shares) model
+```{r include=FALSE}
+library(doMC)
+set.rseed(123)
+w = nrow(online_news1)
+w_train = round(0.8*w)  # round to nearest integer
+w_test = w - w_train
+train = sample.int(w, w_train, replace=FALSE)
+test = setdiff(1:w,train)
+online_train = online_news1[train,]
+online_test = online_news1[test,]
+lm_big = lm(log(shares) ~ . - viral, data = online_train)
+lm_backward = step(lm_big, direction = 'backward')
+```
+```{r}
+yhat_train=predict(lm_backward,newdata=online_train)
+yhat_viral=ifelse(yhat_train > log(1400), 1, 0)
+confusion_in=table(y = online_train$viral, yhat = yhat_viral)
+sum(diag(confusion_in))/sum(confusion_in)
+```
+$$
+The\ accuracy\ of\ the\ linear\ model\ for\ log(shares)\ is\ `r (sum(diag(confusion_in))/sum(confusion_in))%>%round(3)`
+$$
+Clearly, log(shares) model performs better at predicting whether an articles goes viral. Therefore, we employ log(shares) model in the following calculations and analysis.
+
+### out-of-sample performance for the final regression model
+```{r}
+confusion_matrix = do(100) * {
+  w = nrow(online_news1)
+  w_train = round(0.8*w)  # round to nearest integer
+  w_test = w - w_train
+  train = sample.int(w, w_train, replace=FALSE)
+  test = setdiff(1:w,train)
+  online_train = online_news1[train,]
+  online_test = online_news1[test,]
+  yhat_test=predict(lm_backward,newdata=online_test)
+  viral_test = ifelse(yhat_test > log(1400), 1, 0)
+  confusion_out=table(y = online_test$viral,yhat=viral_test)
+}
+accuracy = (sum(confusion_matrix$X0.0)+sum(confusion_matrix$X1.1))/sum(confusion_matrix)
+reg_matrix = matrix(round(c(sum(confusion_matrix$X0.0), sum(confusion_matrix$X0.1), sum(confusion_matrix$X1.0), sum(confusion_matrix$X1.0))/100, 0),ncol = 2,byrow=TRUE)
+colnames(reg_matrix) <- c("0","1")
+rownames(reg_matrix) <- c("0","1")
+names(dimnames(reg_matrix)) <- list('y', 'yhat')
+reg_table <- as.table(class_matrix)
+reg_table
+```
+The above is the confusion matrix obtained from the average of 100 out-of-sample performances of regression model. From which we can report that:
+The true positive rate is `r (sum(confusion_matrix$X1.0) / (sum(confusion_matrix$X1.0) + sum(confusion_matrix$X1.1)))%>%round(3)`.
+The false positive rate is `r (sum(confusion_matrix$X0.1) / (sum(confusion_matrix$X0.1) + sum(confusion_matrix$X0.0)))%>%round(3)`. 
+The false discovery rate is `r (sum(confusion_matrix$X0.1) / (sum(confusion_matrix$X1.1) + sum(confusion_matrix$X0.1)))%>%round(3)`.
+The overall accuracy rate is `r accuracy%>%round(3)`.
+The overall error rate is `r (1-accuracy)%>%round(3)`. 
+
+### Comparison with the null model
+```{r}
+table(online_test$viral)
+acc1 = 1- sum(online_test$viral)/sum(table(online_test$viral))
+acc1
+```
+We continue assume the null model classifies all articles as "not viral". Then, In this particular train-test split. The accuracy of the null model is `r acc1%>%round(3)`. Our regression model returns an accuracy rate of `r accuracy%>%round(3)`. Its absolute improvement over the null model is approximately `r (100*(accuracy - acc1))%>%round(3)` percent. Its relative improvement, or lift over the null model is `r (accuracy / acc1)%>%round(3)`. The regression model shows a decent amount of improvements in accuracy over the null model.
+
+### Conclusions
+In order to classify articles as "viral" and "not viral", we approach with two distinct methodologies - classification and regression. We determine that linear probability model performs better than the logistic probability model. We also discover that using log transformation of shares in our regression model improves its out-of-sample accuracy. Still, while both of our final regression and classification models demonstrate decent amount of improvements on accuracy over the null model, classification models do seem to outperform the regression model by around 5%.
+
+The statistical intuition behind the disparity, as we suspect, is connected to the fundamental difference between the two models. Classification directly predicts a discrete class label whereas regression only predicts a continuous quantity. In classification, it doesn't matter if an article is shared over 1 million times or it's only shared 1401 times. They would all be classified as "viral". The classification method discards the informations that aren't useful in mere classification. But in regression models, the informations of how many shares each article has are retained, which disrupts the classification. With large outliers, the slope coefficients of explanatory variables are magnified. Consequently, the model tends to overestimate the exact number of shares. This leads to the high false positive rate as shown in previous sections and the reduced accuracy of the regression model predictions.
+
+```{r}
+ggplot(data = online_train) + 
+  geom_violin(mapping=aes(x ='', y = shares), color = "orange") +
+  ggtitle("Distribution of online article shares") +
+  theme(plot.title = element_text(hjust = 0.5, face = "italic", color = 'grey2'), plot.caption = element_text(hjust = 0.5, face = "italic", color = 'grey2')) +
+  labs(caption = 'Many articles have their online shares way above 1400, yet the exact numbers are not useful in classification.') +
+  ylim(0, 10000) 
+```
