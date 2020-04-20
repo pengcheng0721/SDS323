@@ -12,7 +12,7 @@ library(mosaic)
 library(tidyverse)
 ```
 
-## Delay & Day of the week
+## Delay & Day of the Week
 ```{r message=FALSE, warning=FALSE}
 ABIA <- read.csv("/Users/pengcheng/Desktop/UT Austin/Spring 2020/SDS 323/Exercise 1/ABIA.csv")
 ABIA=filter(ABIA, DepDelay>0)
@@ -24,7 +24,7 @@ sp<-ggplot(data=ABIA)+
 sp+xlim(300,1400)+ylim(0,400)
 ```
 
-## Delay & Month of the year
+## Delay & Month of the Year
 ```{r message=FALSE, warning=FALSE}
 sp<-ggplot(data=ABIA)+
   geom_point(mapping=aes(x=Minutes,y=DepDelay), color = 'lightpink2')+
