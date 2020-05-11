@@ -1,0 +1,251 @@
+---
+title: "SDS Final Project: Predict Counties' Political Leanings with Demographics Statistics"
+subtitle: "by Cheng Peng, Zhiyuan Wei, Erich Schwartz"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+# Abstract:
+Using the Data of 2016 & 2018 House elections and the social demographic statistics in 2761 counties across the United States, we construct predictive models of a county’s political leaning based on the social, economic, racial compositions of the county’s population. We discover that compared with model selection methodologies, tree models return better estimates in that the algorithm incorporates the interactions between different variables into the model. We also learn that the main predictors of political leanings vary significantly by region and is closely associated with the racial composition and the education level. Applying our random forest models to Texas, we also confirm the state’s rapid shift to the left, and the trend is particularly prominent in north, east, and central Texas. Our estimates show that Texas would become a potential swing state in 2024.
+
+# Introduction:
+American electoral politics has long intertwined with regional demographics. Groups of different income, race, and education level exhibit very different patterns in their electoral preferences. The Democratic electorate is known to feature minorities, women, and college-educated voters. The Republican electorate, in contrast, skews whiter and more rural. 
+
+The distinctions between the two parties grow more apparent in recent years as both parties swing to the more extreme sides of the political spectrum. Meanwhile, as a country of immigrants, America’s demographics are always changing. States like Texas, Arizona, and Florida continue to trend Democratic, whereas Wisconsin, Michigan, and Pennsylvania gradually lean towards Republican, reshaping a presidential nominee’s path to an electoral college victory.
+
+While extensive research has been conducted to predict election outcomes, few have used social demographics to predict the political leaning of geographical units (like counties). Building a predictive model like this has many benefits. While election results are hard to predict (candidates’ perceived likeability, for instance, is hard to measure quantitatively and polls are not always reliable in the age of the Internet), the demographic trends are relatively more apparent. Political parties and individuals can rely on models like these to best delegate resources and identify key constituencies a campaign should target. 
+
+This report uses data from MIT Election Lab and the Harvard Election Data Archive, which contains the demographical information of over 2700 U.S. counties as well as the results of four past elections (a.k.a. 2012, 2014, 2016, and 2018). We seek to build a predictive model of a county’s political leaning based on its social demographics and analyze how each variable impacts a county’s political stance. In addition, we use the population estimates from the Texas Demographic Center and apply our predictive model to determine the political leaning of 254 Texas counties in 2024.
+
+# Methods:
+In this report, we use two datasets to conduct the analysis. The first one, election.csv,is derived from the MIT Election Lab and the Harvard Election Data Archive, which contains demographics and past election data at the county level. The demographics data features the total population, voting-age population, percentages of non-Hispanic whites, non-Hispanic blacks, and the Hispanic population, percentage of non-white population, percentage of foreign-born population, percentage of female population, percentage of population 29 years or under and percentage of 65 years and older, median household income, unemployment rates, percentage of the population without a high school diploma, percentage of the population without a college degree, percentage of the white population without a high school diploma, percentage of the population without a college degree, percentage of the rural population, and rural-urban continuum codes. The demographics data was collected between 2012 and 2016. The dataset also includes House, Senate, Gubernatorial and Presidential election outcomes from 2012 to 2018.
+
+The second one, texas.csv, is obtained from the Texas Demographic Center, which contains estimates of the Texas population from 2020 to 2040 by age group, race/ethnic origin, and sex. It’s important to note that different from the MIT statistics and the Texas Demographic Center classifies the population into five age groups: 0~18, 19~24, 25~44, 45~65, 65+. Therefore, we estimate the percentage of people 29 years or under by summing up the first two groups and 25~44 group divided by 4. We also use the data to evaluate the population proportion of different age groups, race, and sex. However, as social and economic data/estimates by county are unattainable, we assume the median income stays the same after adjusting for inflation. We also assume the education level and percentage of the foreign-born population remains the same in our estimates.
+
+We apply two different mythologies and offer two prediction models. The first one is obtained by the model selection algorithm, which returns numerical estimates of each variable’s slope coefficients. The dependent variable of interest is the Democratic vote share in the House election. In 2016, the Republicans were winning the generic ballad, whereas 2018 was a Democratic wave year. So, to offer more general estimates, we take the average of the two elections’ outcome as our dependent variable. We choose the House election due to the large number of candidates running nationwide, so their personal attributes will have fewer impacts on the model. Senate, Gubernatorial and Presidential Elections may yield flawed estimates as few candidates were running and personal characteristics matter in U.S. elections. Our explanatory variables are all demographics variables from the MIT dataset. 
+
+We also use tree algorithms to build a second model, which is known to detect and incorporate interactions into the predictive model. We use the same dependent variables and explanatory variables from the first model and evaluate how the impacts of a variable like the white population percentage vary across different urban-rural settings and geographical regions.
+
+Finally, we apply the two models to the state of Texas and estimate the political leanings of each county in 2024 using both models. The data is visualized with Google Maps and the information regarding the longitude and latitude of each Texas county. Low percentages of Democratic vote shares are denoted red while high percentages are denoted blue. 
+
+# Results:
+```{r include=FALSE}
+library(tidyverse)
+library(lubridate)
+library(randomForest)
+library(pdp)
+library(reshape)
+library(gamlr)
+library(foreach)
+library(doMC)
+library(mosaic)
+library(ISLR)
+library(leaps)
+election = read.csv('election.csv')
+election = mutate(election, turnout18 = election$total.house18/election$cvap)
+election$turnout18 %>% round(3)
+election$ruralurban = factor(election$ruralurban)
+election = drop_na(election, 'dem.house18')
+election = drop_na(election, 'demhouse16_pct')
+election$demvote = (election$dem.house18 + election$demhouse16_pct)/2
+election$region = factor(election$region)
+theme1 = theme(plot.title = element_text(hjust = 0.5, face = "italic", color = 'grey2'), plot.caption = element_text(hjust = 0.5, face = "italic", color = 'grey3'))
+```
+
+## Model Selection Results (National)
+```{r message=FALSE, warning=FALSE, include=FALSE}
+lm_big = glm(demvote ~ black_pct + turnout18 + hispanic_pct + foreignborn_pct + female_pct + rural_pct + white_pct + lesshs_whites_pct + lesscollege_whites_pct + median_hh_inc + age29andunder_pct + age65andolder_pct + clf_unemploy_pct + lesshs_pct + lesscollege_pct + ruralurban + turnout18 + region, data=election)
+lm_backward = step(lm_big, direction = 'backward')
+```
+
+### Table 1: Regression Results
+```{r}
+summary(lm_backward)
+yhat = predict(lm_backward, election)
+y = election$demvote
+e1 = (yhat - y)^2 %>% mean %>% sqrt %>% round(3)
+```
+
+$$
+The\ Root\ Mean\ Square\ Error\ (in\ Sample)\ for\ the\ Model\ Selection\ is\ `r (yhat - y)^2 %>% mean %>% sqrt %>% round(3)`
+$$
+
+## Random Forest Results (National)
+```{r}
+n = nrow(election)
+n_train = floor(0.8*n)
+n_test = n - n_train
+train_cases = sample.int(n, size=n_train, replace=FALSE)
+election_train = election[train_cases,]
+election_test = election[-train_cases,]
+y_all = election$demvote
+y_test = y_all[-train_cases]
+forest1 = randomForest(demvote ~ white_pct + black_pct + hispanic_pct + foreignborn_pct + female_pct + age29andunder_pct + age65andolder_pct + median_hh_inc + clf_unemploy_pct + lesshs_pct + lesscollege_pct + lesshs_whites_pct + lesscollege_whites_pct + rural_pct + ruralurban + turnout18 + region, data=election_train)
+```
+
+```{r}
+yhat_test = predict(forest1, election_test)
+e2 = (yhat_test - y_test)^2 %>% mean %>% sqrt %>% round(3)
+```
+
+$$
+The\ Root\ Mean\ Square\ Error\ for\ the\ Tree\ Algorithm\ is\ `r (yhat_test - y_test)^2 %>% mean %>% sqrt %>% round(3)`
+$$
+
+Clearly, the tree model yields more accurate predictions. Its out-of-sample performance is even better than the in-sample performance of the model returned by the model selection methodology.
+
+```{r}
+varImpPlot(forest1, main = 'Figure 1: Variance Importance Plot (National)')
+```
+
+The white population percentages, whites without a college degree population percentages, the percentages of people without a college degree, and the black population percentages are the strongest predictors of county-level political leanings nationwide.
+
+## Random Forest Results & Predictions (Texas)
+```{r include=FALSE}
+telection = read.csv('texas.csv')
+telection = mutate(telection, turnout18 = telection$total.house18/telection$cvap)
+telection$turnout18 %>% round(3)
+telection$ruralurban = factor(telection$ruralurban)
+telection = drop_na(telection, 'dem.house18')
+telection = drop_na(telection, 'demhouse16_pct')
+telection$demvote = (telection$dem.house18 + telection$demhouse16_pct)/2
+```
+```{r}
+forest2 = randomForest(demvote ~ white_pct + black_pct + hispanic_pct + foreignborn_pct + female_pct + age29andunder_pct + age65andolder_pct + median_hh_inc + clf_unemploy_pct + lesshs_pct + lesscollege_pct + lesshs_whites_pct + lesscollege_whites_pct + rural_pct + ruralurban + turnout18, data=telection)
+varImpPlot(forest2, main='Figure 2: Variance Importance Plot (Texas)')
+```
+
+The white population percentages and the hispanic population percentages are the two strongest predictors of county-level political leanings in Texas.
+
+### 2024 
+```{r}
+telection$white_pct = telection$X2024_white_pct
+telection$black_pct = telection$X2024_black_pct
+telection$hispanic_pct = telection$X2024_hispanic_pct
+telection$female_pct = telection$X2024_female_pct
+telection$age65andolder_pct = telection$X2024_over65
+telection$age29andunder_pct = telection$X2024_less29
+telection$yhat_2024 = predict(forest2, telection)
+```
+
+```{r include=FALSE}
+library(RCurl)
+library(ggmap)
+register_google("AIzaSyCgTHeN9kuvv-q4Opec570eA7sAFkr-cEs")
+geocode("texas")
+```
+```{r}
+register_google("AIzaSyCgTHeN9kuvv-q4Opec570eA7sAFkr-cEs")
+loc=c(lat=31.9686,lon=-99.90181	)
+map_texas<-get_map(location="texas",zoom=6,maptype="terrain",color="color")
+Democratic.Vote.Share = telection$yhat_2024
+ggmap(map_texas)+
+  geom_point(aes(x=Latitude,y=Longitude,color=Democratic.Vote.Share,na.rm=T,alpha=0.1),data=telection)+
+  scale_color_gradient(high = 'blue3', low = 'red3')+
+  labs(title = 'Figure 3: Democratic Vote Shares in 2024')+
+  theme1
+```
+
+Houston, Dallas, San Antonio, Austin, and counties near the Southern borders vote Democratic, while the rest of the state votes Republican in 2024.
+
+```{r}
+r1 = (sum(telection$yhat_2024 * telection$total_population)/(sum(telection$total_population))) %>% round(3)
+```
+$$
+The\ predicted\ statewide\ Democratic\ vote\ share\ in\ 2024\ is\ `r r1`.
+$$
+
+```{r}
+Shifts.towards.Dems = telection$yhat_2024-telection$demvote
+ggmap(map_texas)+
+  geom_point(aes(x=Latitude,y=Longitude,color=Shifts.towards.Dems,na.rm=T,alpha=0.1),data=telection)+
+  scale_color_gradient(high = 'blue3', low = 'red3')+
+  labs(title = 'Figure 4: Percentage shifts towards the Democratic Party in 2024', caption = 'North, East, and Central Texas is trending Democratic.')+
+  theme1
+```
+
+
+
+# Conclusion:
+Building models with two different methodologies, we find it apparent that the random forest model yields better predictions (The out-of-sample RMSE for the random forest is `r e2`, whereas the in-sample RMSE for the model returned from the model selection is `r e1`). This demonstrates that variables of social demographics closely intertwine with one another. As evidenced by the Figure 7-9 in part B of the Appendix, in different regions, the effects of, for instance, the white population percentage is markedly different. The white population percentages have a more substantial impact on the Southwest and Southeast, with a larger white population than the rest of the country. 
+
+We also find from the two variance importance plots (Figure 1 & Figure 2) that the main predictors of the Democratic vote shares vary by region. On the national scale, the proportions of whites without a college degree within the entire population are the second most important predictor, followed by the percentage of the population without a college degree and the percentage of the black population. In contrast, the percentage of the Hispanic population is the second most critical predictor in Texas, followed by two variables associated with education levels. The differences make intuitive sense in that on the national scale, African Americans make up the second-largest electorate, whereas, in Texas, Hispanics/Latinos represent the second largest electorate. Also, education has long been considered a critical difference between the Democratic and the Republican voters. College-educated voters predominately vote Democratic. In 2018, 53 percent of college-educated white voters voted Democratic compared with 37 percent for those without a college degree. Also, compared to the United States as a whole, Texas may have lower average education levels. In both cases, the non-Hispanics white population percentage is the most important. This also demonstrates how regional demographic composition can shape the electoral outcome. We suspect the importance of the non-Hispanic white population is precisely due to the fact that non-Hispanic whites remain the dominant racial group and the largest electorate in Texas and America.
+
+Our predictive model also showcases how demographic trends would impact Texas’ political leanings. Figure 3 shows the predicted Democratic vote share in the 2024 House of Representatives based purely on social demographics. Though this is likely not the election outcome, as factors like incumbency and campaign finance strongly influence election results, it provides valuable information as to which county political operatives from both parties should target. Austin, San Antonio, Texas, Dallas-Fort Worth, and the counties near the southern border would continue to land in the Democratic column, while the rest of Texas still favors Republican ideologies. 
+
+In addition, from Figure 4, we learn that Texas, like the rest of the Sun Belt states, is rapidly trending blue. In most counties of the North, East, and Central Texas, Democrats are expected to get 0.1-0.2 percent of votes in Election 2024. The Democratic vote shares in four major metropolitan areas also appear to remain steady. More importantly, taking the weighted average of all counties’ predicted Democratic votes share, we learn that in 2024, an estimated 48.3% votes in Texas would go to the Democratic Party, effectively making the GOP stronghold a battleground state in the years to come.
+
+Finally, in part A of the Appendix (Figure 5 & 6), we use the model returned from the model selection algorithm to estimate Texas’ political leanings in 2024. Though consistent with the tree model in suggesting the state’s rapid shift to the left, the results return unreasonably high estimates for several Texas counties in the north. According to the model, some of the counties, now solidly Republican, would garner more than 60% of the vote in 2024, showing that the result is potentially problematic. It also reinforces our previous findings that tree models better estimate political leanings based on social demographics.
+
+# Appendix:
+
+### Part A: Model Selection Results for Texas in 2024
+```{r include=FALSE}
+telection = read.csv('/Users/pengcheng/Desktop/texas.csv')
+telection = mutate(telection, turnout18 = telection$total.house18/telection$cvap)
+telection$ruralurban = factor(telection$ruralurban)
+telection = drop_na(telection, 'dem.house18')
+telection = drop_na(telection, 'demhouse16_pct')
+telection$demvote = (telection$dem.house18 + telection$demhouse16_pct)/2
+lm_big = glm(demvote ~ black_pct + turnout18 + hispanic_pct + foreignborn_pct + female_pct + rural_pct + white_pct + lesshs_whites_pct + lesscollege_whites_pct + median_hh_inc + age29andunder_pct + age65andolder_pct + clf_unemploy_pct + lesshs_pct + lesscollege_pct + ruralurban + turnout18, data=telection)
+lm_backward = step(lm_big, direction = 'backward')
+telection$white_pct = telection$X2024_white_pct
+telection$black_pct = telection$X2024_black_pct
+telection$hispanic_pct = telection$X2024_hispanic_pct
+telection$female_pct = telection$X2024_female_pct
+telection$age65andolder_pct = telection$X2024_over65
+telection$age29andunder_pct = telection$X2024_less29
+telection$yhat_2024 = predict(lm_backward, telection)
+```
+```{r}
+Democratic.Vote.Share=telection$yhat_2024
+ggmap(map_texas) + 
+  geom_point(aes(x=Latitude,y=Longitude,color=Democratic.Vote.Share,na.rm=T,alpha=0.1),data=telection) +
+  scale_color_gradient(high = 'blue3', low = 'red3')+
+  labs(title = 'Figure 5: Democratic Vote Shares in 2024')+
+  theme1
+```
+
+```{r}
+Shifts.towards.Dems = telection$yhat_2024-telection$demvote
+ggmap(map_texas)+
+  geom_point(aes(x=Latitude,y=Longitude,color=Shifts.towards.Dems,na.rm=T,alpha=0.1),data=telection)+
+  scale_color_gradient(high = 'blue3', low = 'red3')+
+  labs(title = 'Figure 6: Percentage shifts towards the Democratic Party in 2024')+
+  theme1
+```
+
+### Part B: Examples of Interactions derived from the tree model
+```{r}
+p1 = pdp::partial(forest1, pred.var = c('white_pct','region'))
+ggplot(p1) + 
+  geom_point(mapping=aes(x=white_pct, y=yhat),color="salmon") + 
+  labs(title="Figure 7: Effects of non-Hispanic whites population proportions across regions", xlab='non-Hispanic whites population percentages', ylab = 'predicted Democratic vote shares', caption = '1-West, 2-Southwest, 3-Midwest, 4-Southeast, 5-Northeast')+
+  facet_wrap(~region)+
+  theme1
+```
+
+```{r}
+p2 = pdp::partial(forest1, pred.var = c('lesscollege_whites_pct','region'))
+ggplot(p2) + 
+  geom_point(mapping=aes(x=lesscollege_whites_pct, y=yhat),color="salmon") + 
+  labs(title="Figure 8: Effects of white population without a college degree proportions across regions", xlab='white population without a college degree percentages', ylab = 'predicted Democratic vote shares', caption = '1-West, 2-Southwest, 3-Midwest, 4-Southeast, 5-Northeast')+
+  facet_wrap(~region)+
+  theme1
+```
+
+```{r}
+p3 = pdp::partial(forest1, pred.var = c('black_pct','region'))
+ggplot(p3) + 
+  geom_point(mapping=aes(x=black_pct, y=yhat),color="salmon") +
+  labs(title="Figure 9: Effects of non-Hispanic blacks populaton proportions across regions", xlab='non-Hispanic blacks populaton percentages', ylab = 'predicted Democratic vote shares', caption = '1-West, 2-Southwest, 3-Midwest, 4-Southeast, 5-Northeast')+
+  facet_wrap(~region)+
+  theme1
+```
